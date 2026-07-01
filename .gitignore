@@ -1,0 +1,11 @@
+# Generated artifacts — never commit (they can carry local paths / host / IP)
+dashboard.html
+*.generated.md
+
+# Adopter's real config — only the .example ships
+control-tower.config.toml
+
+# Secrets and Python cruft
+.env
+__pycache__/
+*.pyc
