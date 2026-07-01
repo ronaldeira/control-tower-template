@@ -9,3 +9,7 @@ control-tower.config.toml
 .env
 __pycache__/
 *.pyc
+
+# Dev-only tooling and process scratch — never ship
+.venv/
+.superpowers/
