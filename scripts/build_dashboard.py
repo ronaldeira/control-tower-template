@@ -239,9 +239,62 @@ def collect_local(project, *, now):
     return live
 
 
+def parse_repo_json(repo, prs, release_ts):
+    latest = repo.get("pushed_at") or release_ts
+    return {
+        "branch": repo.get("default_branch") or "",
+        "version": None,  # filled by caller if a release/tag exists
+        "stars": repo.get("stargazers_count"),
+        "prs": prs,
+        "issues": repo.get("open_issues_count"),
+        "ci": None,
+        "last_activity": parse_ts(latest),
+    }
+
+
+def github_get(path, token):
+    import json as _json
+    if run_cmd(["gh", "--version"], timeout=5):
+        out = run_cmd(["gh", "api", path], timeout=20)
+        if out:
+            try:
+                return _json.loads(out)
+            except ValueError:
+                return None
+        return None
+    import urllib.request
+    req = urllib.request.Request(f"https://api.github.com/{path}")
+    req.add_header("Accept", "application/vnd.github+json")
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            return _json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
+
+
+def collect_remote(project, *, token, now):
+    repo = project["repo"]
+    data = github_get(f"repos/{repo}", token)
+    if not isinstance(data, dict):
+        return {"last_activity": None}
+    prs = github_get(f"repos/{repo}/pulls?state=open&per_page=1", token)
+    pr_count = len(prs) if isinstance(prs, list) else None
+    rel = github_get(f"repos/{repo}/releases/latest", token)
+    release_ts = rel.get("published_at") if isinstance(rel, dict) else None
+    live = parse_repo_json(data, pr_count, release_ts)
+    if isinstance(rel, dict) and rel.get("tag_name"):
+        live["version"] = rel["tag_name"]
+    if project.get("url"):
+        live["up"] = _http_up(project["url"])
+    return live
+
+
 def collect_live(project, *, token=None, now=None):
-    """Dispatch to local/remote collectors. Filled in Tasks 6-7."""
-    return {}
+    if mode_of(project) == "local":
+        return collect_local(project, now=now)
+    return collect_remote(project, token=token, now=now)
 
 
 def _build(cfg, *, demo, include_env, now, token):

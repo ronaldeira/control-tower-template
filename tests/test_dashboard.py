@@ -205,3 +205,32 @@ def test_collect_local_parses_git(monkeypatch, tmp_path):
     assert live["branch"] == "main"
     assert live["version"] == "v2.0.0"
     assert live["last_activity"] == bd.parse_ts("2026-07-02T09:00:00Z")
+
+
+SAMPLE_REPO = {
+    "default_branch": "main", "stargazers_count": 128,
+    "open_issues_count": 7, "pushed_at": "2026-07-02T08:00:00Z",
+}
+
+
+def test_parse_repo_json_maps_fields():
+    live = bd.parse_repo_json(SAMPLE_REPO, prs=3, release_ts="2026-07-01T00:00:00Z")
+    assert live["branch"] == "main"
+    assert live["stars"] == 128
+    assert live["prs"] == 3
+    # issues count is total open (issues+PRs); we expose it as-is
+    assert live["issues"] == 7
+    assert live["last_activity"] == bd.parse_ts("2026-07-02T08:00:00Z")
+
+
+def test_collect_live_dispatches_remote(monkeypatch):
+    monkeypatch.setattr(bd, "collect_remote",
+                        lambda p, *, token, now: {"branch": "REMOTE"})
+    live = bd.collect_live({"id": "x", "name": "X", "repo": "o/x"}, token=None, now=NOW)
+    assert live["branch"] == "REMOTE"
+
+
+def test_collect_live_dispatches_local(monkeypatch):
+    monkeypatch.setattr(bd, "collect_local", lambda p, *, now: {"branch": "LOCAL"})
+    live = bd.collect_live({"id": "x", "name": "X", "path": "/p"}, token=None, now=NOW)
+    assert live["branch"] == "LOCAL"
