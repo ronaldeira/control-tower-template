@@ -3,6 +3,7 @@ import textwrap
 import pytest
 import build_dashboard as bd
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 
 
 def _write(tmp_path, toml_text):
@@ -234,3 +235,13 @@ def test_collect_live_dispatches_local(monkeypatch):
     monkeypatch.setattr(bd, "collect_local", lambda p, *, now: {"branch": "LOCAL"})
     live = bd.collect_live({"id": "x", "name": "X", "path": "/p"}, token=None, now=NOW)
     assert live["branch"] == "LOCAL"
+
+
+def test_example_config_is_remote_only():
+    root = Path(__file__).resolve().parent.parent
+    cfg = bd.load_config(str(root / "control-tower.config.example.toml"),
+                         strict_remote_only=True)
+    assert cfg["projects"], "example config must list at least one project"
+    for p in cfg["projects"]:
+        assert "path" not in p and "services" not in p
+        assert bd.REPO_RE.match(p["repo"])

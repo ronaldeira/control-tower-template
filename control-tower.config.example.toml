@@ -1,0 +1,17 @@
+# Control Tower — OSS Showcase (REMOTE-ONLY: every value here is already public).
+# Copy this to `control-tower.config.toml` (gitignored) and add local-mode
+# projects with `path = "..."` to monitor your own machine. See README.
+
+[dashboard]
+title = "Control Tower — OSS Showcase"
+fresh_hours = 48   # activity within this window shows the "● NEW" highlight
+
+[[projects]]
+id   = "aquila-guardian"
+name = "Aquila Guardian"
+repo = "ronaldeira/aquila-guardian"
+
+[[projects]]
+id   = "control-tower-template"
+name = "Control Tower (template)"
+repo = "ronaldeira/control-tower-template"
