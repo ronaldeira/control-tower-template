@@ -66,6 +66,22 @@ repo = "owner/aquila-guardian"
 url  = "https://example.com"   # optional; HTTP HEAD for up/down
 ```
 
+**Any public repo works — including ones you don't own.** A remote-mode entry (a
+`[[projects]]` block with a `repo` and **no** `path`) needs no clone and no access: it
+reads public data via the GitHub API. Point it at a dependency, a tool, or a maintainer
+you follow — e.g.:
+
+```toml
+[[projects]]
+id   = "codexbar"                 # must match ^[a-z0-9_-]+$
+name = "CodexBar (watching)"
+repo = "steipete/CodexBar"        # someone else's public repo — that's fine
+```
+
+The card shows its default branch, latest release, open PRs/issues, stars, CI status,
+and a "● NEW" badge when its owner just pushed. (Tip: authenticate `gh` or set
+`GITHUB_TOKEN` to lift the API limit from 60 to 5000 req/hr.)
+
 **Local mode** (your machine; branch, dirty, services — never publish this config):
 
 ```toml
