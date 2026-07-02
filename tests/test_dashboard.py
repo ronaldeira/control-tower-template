@@ -155,3 +155,21 @@ def test_render_html_no_env_omits_header():
     without = bd.render_html([row], title="T", include_env=False, env=None)
     assert "ENVLINE" in with_env
     assert "ENVLINE" not in without
+
+
+def test_cli_demo_writes_dashboard(tmp_path):
+    out = tmp_path / "dash.html"
+    rc = bd.main(["--demo", "-o", str(out)])
+    assert rc == 0
+    html_out = out.read_text()
+    assert "<!doctype html>" in html_out
+    assert "Demo" in html_out  # at least one demo card title
+
+
+def test_cli_dry_run_validates_without_output(tmp_path):
+    cfg = tmp_path / "c.toml"
+    cfg.write_text('[[projects]]\nid="x"\nname="X"\nrepo="o/x"\n')
+    out = tmp_path / "should_not_exist.html"
+    rc = bd.main(["--config", str(cfg), "--dry-run", "-o", str(out)])
+    assert rc == 0
+    assert not out.exists()

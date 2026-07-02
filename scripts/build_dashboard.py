@@ -2,8 +2,10 @@
 """Control Tower — dependency-free dashboard generator (Python 3.11+, stdlib only)."""
 from __future__ import annotations
 
+import argparse
 import html
 import re
+import sys
 import tomllib
 from datetime import datetime, timezone
 
@@ -172,3 +174,73 @@ def render_html(rows, *, title, include_env=True, env=None):
   <div class="grid">{cards}
   </div>
 </body></html>"""
+
+
+def demo_projects():
+    return [
+        {"id": "demo-api", "name": "Demo API", "repo": "acme/demo-api",
+         "url": "https://example.com"},
+        {"id": "demo-web", "name": "Demo Web", "repo": "acme/demo-web"},
+        {"id": "demo-worker", "name": "Demo Worker", "repo": "acme/demo-worker"},
+    ]
+
+
+def demo_live(project, now):
+    from datetime import timedelta
+    seed = {"demo-api": 2, "demo-web": 30, "demo-worker": 100}.get(project["id"], 5)
+    return {"branch": "main", "version": "v1.2.3", "prs": seed % 5,
+            "issues": seed % 3, "stars": seed * 7, "ci": "success",
+            "up": True, "last_activity": now - timedelta(hours=seed)}
+
+
+def collect_live(project, *, token=None, now=None):
+    """Dispatch to local/remote collectors. Filled in Tasks 6-7."""
+    return {}
+
+
+def _build(cfg, *, demo, include_env, now, token):
+    fresh = int(cfg.get("dashboard", {}).get("fresh_hours", 48))
+    title = cfg.get("dashboard", {}).get("title", "Control Tower")
+    projects = demo_projects() if demo else cfg.get("projects", [])
+    rows = []
+    for p in projects:
+        live = demo_live(p, now) if demo else collect_live(p, token=token, now=now)
+        rows.append(build_row(p, live, now, fresh))
+    # env header suppressed when any project is remote mode
+    any_remote = any(mode_of(p) == "remote" for p in projects)
+    env = None if (demo or any_remote or not include_env) else {"host": "localhost", "note": ""}
+    return render_html(rows, title=title, include_env=include_env and env is not None, env=env)
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="Control Tower dashboard generator")
+    ap.add_argument("--config", default="control-tower.config.toml")
+    ap.add_argument("--demo", action="store_true")
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--no-env", action="store_true")
+    ap.add_argument("-o", "--out", default="dashboard.html")
+    args = ap.parse_args(argv)
+
+    now = datetime.now(timezone.utc)
+    if args.demo:
+        cfg = {"dashboard": {"title": "Control Tower — Demo"}, "projects": demo_projects()}
+    else:
+        try:
+            cfg = load_config(args.config)
+        except (OSError, ConfigError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    if args.dry_run:
+        print("ok: config valid")
+        return 0
+    import os
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    out_html = _build(cfg, demo=args.demo, include_env=not args.no_env, now=now, token=token)
+    with open(args.out, "w", encoding="utf-8") as fh:
+        fh.write(out_html)
+    print(f"ok: wrote {args.out} ({len(cfg.get('projects', []))} projects)")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
