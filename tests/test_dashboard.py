@@ -107,3 +107,51 @@ def test_is_fresh_window():
     assert bd.is_fresh(NOW - timedelta(hours=10), NOW, 48) is True
     assert bd.is_fresh(NOW - timedelta(hours=60), NOW, 48) is False
     assert bd.is_fresh(None, NOW, 48) is False
+
+
+def _live(**kw):
+    base = dict(branch="main", version="v1.0.0", prs=2, issues=1, stars=42,
+                ci="success", up=True, last_activity=NOW)
+    base.update(kw)
+    return base
+
+
+def test_build_row_marks_new_within_window():
+    row = bd.build_row({"id": "x", "name": "X", "repo": "o/x"},
+                       _live(last_activity=NOW), NOW, fresh_hours=48)
+    assert row["is_new"] is True
+    assert row["age_label"] == "just now"
+
+
+def test_build_row_placeholders_for_missing_data():
+    row = bd.build_row({"id": "x", "name": "X", "repo": "o/x"},
+                       {"last_activity": None}, NOW, fresh_hours=48)
+    assert row["prs"] == "n/a"
+    assert row["version"] == "(no tags)"
+    assert row["is_new"] is False
+
+
+def test_render_html_escapes_hostile_name():
+    row = bd.build_row(
+        {"id": "x", "name": "<img src=x onerror=alert(1)>", "repo": "o/x"},
+        _live(), NOW, fresh_hours=48)
+    html_out = bd.render_html([row], title="T")
+    assert "<img src=x onerror=alert(1)>" not in html_out
+    assert "&lt;img src=x onerror=alert(1)&gt;" in html_out
+
+
+def test_render_html_escapes_repo_in_href():
+    row = bd.build_row({"id": "x", "name": "X", "repo": 'o/x"><script>'},
+                       _live(), NOW, fresh_hours=48)
+    # bad repo would be rejected by validation, but render must still escape.
+    html_out = bd.render_html([row], title="T")
+    assert '"><script>' not in html_out
+
+
+def test_render_html_no_env_omits_header():
+    row = bd.build_row({"id": "x", "name": "X", "repo": "o/x"}, _live(), NOW, 48)
+    with_env = bd.render_html([row], title="T", include_env=True,
+                              env={"host": "runner", "note": "ENVLINE"})
+    without = bd.render_html([row], title="T", include_env=False, env=None)
+    assert "ENVLINE" in with_env
+    assert "ENVLINE" not in without

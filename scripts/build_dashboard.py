@@ -2,6 +2,7 @@
 """Control Tower — dependency-free dashboard generator (Python 3.11+, stdlib only)."""
 from __future__ import annotations
 
+import html
 import re
 import tomllib
 from datetime import datetime, timezone
@@ -81,3 +82,93 @@ def is_fresh(last_activity, now, fresh_hours):
     if last_activity is None:
         return False
     return (now - last_activity).total_seconds() <= fresh_hours * 3600
+
+
+def esc(x):
+    return html.escape(str(x))
+
+
+def build_row(project, live, now, fresh_hours):
+    la = live.get("last_activity")
+    return {
+        "id": project["id"],
+        "name": project["name"],
+        "mode": mode_of(project),
+        "repo": project.get("repo", ""),
+        "url": project.get("url", ""),
+        "branch": live.get("branch") or "(detached)",
+        "version": live.get("version") or "(no tags)",
+        "prs": live.get("prs", "n/a") if live.get("prs") is not None else "n/a",
+        "issues": live.get("issues", "n/a") if live.get("issues") is not None else "n/a",
+        "stars": live.get("stars", "n/a") if live.get("stars") is not None else "n/a",
+        "ci": live.get("ci") or "n/a",
+        "up": live.get("up"),
+        "age_label": relative_age(la, now),
+        "is_new": is_fresh(la, now, fresh_hours),
+    }
+
+
+def _up_badge(up):
+    if up is True:
+        return '<span class="up ok">● up</span>'
+    if up is False:
+        return '<span class="up down">● down</span>'
+    return ""
+
+
+def _card(row):
+    new = '<span class="new">● NEW</span>' if row["is_new"] else ""
+    age = f'<span class="age">{esc(row["age_label"])}</span>' if row["age_label"] else ""
+    repo = esc(row["repo"])
+    repo_link = (f'<a href="https://github.com/{repo}" target="_blank" '
+                 f'rel="noopener">{repo}</a>') if row["repo"] else ""
+    url = esc(row["url"])
+    url_link = (f'<a href="{url}" target="_blank" rel="noopener">{_up_badge(row["up"])}</a>'
+                if row["url"] else _up_badge(row["up"]))
+    return f"""
+    <div class="card">
+      <div class="card-head"><h2>{esc(row["name"])}</h2>{new}{age}</div>
+      <div class="meta">{repo_link}</div>
+      <ul class="stats">
+        <li>branch: <code>{esc(row["branch"])}</code></li>
+        <li>version: <code>{esc(row["version"])}</code></li>
+        <li>PRs: {esc(row["prs"])} · issues: {esc(row["issues"])}</li>
+        <li>★ {esc(row["stars"])} · CI: {esc(row["ci"])}</li>
+        <li>{url_link}</li>
+      </ul>
+    </div>"""
+
+
+_STYLE = """
+  body{font-family:system-ui,sans-serif;background:#0d1117;color:#e6edf3;margin:0;padding:24px}
+  h1{font-size:20px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+  .card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px}
+  .card-head{display:flex;align-items:center;gap:8px}
+  .card-head h2{font-size:15px;margin:0;flex:1}
+  .new{color:#3fb950;font-weight:600;font-size:12px}
+  .age{color:#8b949e;font-size:12px}
+  .stats{list-style:none;padding:0;margin:8px 0 0;font-size:13px;color:#c9d1d9}
+  .stats li{margin:3px 0}
+  code{background:#0d1117;padding:1px 5px;border-radius:4px}
+  .up.ok{color:#3fb950}.up.down{color:#f85149}
+  .env{color:#8b949e;font-size:12px;margin-bottom:16px}
+  a{color:#58a6ff;text-decoration:none}
+"""
+
+
+def render_html(rows, *, title, include_env=True, env=None):
+    cards = "\n".join(_card(r) for r in rows)
+    env_html = ""
+    if include_env and env:
+        env_html = (f'<div class="env">🖥️ {esc(env.get("host", ""))} · '
+                    f'{esc(env.get("note", ""))}</div>')
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>{esc(title)}</title><style>{_STYLE}</style></head>
+<body>
+  <h1>{esc(title)}</h1>
+  {env_html}
+  <div class="grid">{cards}
+  </div>
+</body></html>"""
