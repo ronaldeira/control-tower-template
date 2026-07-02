@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import tomllib
+from datetime import datetime, timezone
 
 PROJECT_ID_RE = re.compile(r'^[a-z0-9_-]+$')
 REPO_RE = re.compile(r'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')
@@ -47,3 +48,36 @@ def load_config(path: str, *, strict_remote_only: bool = False) -> dict:
     cfg.setdefault("projects", [])
     validate_config(cfg, strict_remote_only=strict_remote_only)
     return cfg
+
+
+def parse_ts(value):
+    """Parse an ISO-8601 timestamp (with optional trailing Z) to aware UTC."""
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def relative_age(then, now):
+    """Human 'time ago' label; '' when unknown."""
+    if then is None:
+        return ""
+    delta = now - then
+    hours = delta.total_seconds() / 3600
+    if hours < 1:
+        return "just now"
+    if hours < 24:
+        return f"{int(hours)}h ago"
+    return f"{int(hours // 24)}d ago"
+
+
+def is_fresh(last_activity, now, fresh_hours):
+    """True when activity falls within the freshness window."""
+    if last_activity is None:
+        return False
+    return (now - last_activity).total_seconds() <= fresh_hours * 3600
