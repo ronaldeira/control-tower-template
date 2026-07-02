@@ -173,3 +173,35 @@ def test_cli_dry_run_validates_without_output(tmp_path):
     rc = bd.main(["--config", str(cfg), "--dry-run", "-o", str(out)])
     assert rc == 0
     assert not out.exists()
+
+
+def test_run_cmd_missing_binary_returns_empty():
+    assert bd.run_cmd(["definitely-not-a-real-binary-xyz"], timeout=2) == ""
+
+
+def test_collect_local_missing_path_reports(monkeypatch):
+    live = bd.collect_local({"id": "x", "name": "X", "path": "/no/such/dir"}, now=NOW)
+    # No crash; branch unknown, last_activity None.
+    assert live.get("last_activity") is None
+
+
+def test_collect_local_parses_git(monkeypatch, tmp_path):
+    calls = {}
+
+    def fake_run(cmd, *, timeout, cwd=None):
+        key = " ".join(cmd[:3])
+        calls[key] = cmd
+        if cmd[:2] == ["git", "branch"]:
+            return "main"
+        if cmd[:2] == ["git", "describe"]:
+            return "v2.0.0"
+        if cmd[:2] == ["git", "log"]:
+            return "2026-07-02T09:00:00Z"
+        return ""
+
+    monkeypatch.setattr(bd, "run_cmd", fake_run)
+    monkeypatch.setattr(bd.os.path, "isdir", lambda p: True)
+    live = bd.collect_local({"id": "x", "name": "X", "path": str(tmp_path)}, now=NOW)
+    assert live["branch"] == "main"
+    assert live["version"] == "v2.0.0"
+    assert live["last_activity"] == bd.parse_ts("2026-07-02T09:00:00Z")

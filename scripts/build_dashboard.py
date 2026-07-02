@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import argparse
 import html
+import os
 import re
+import subprocess
 import sys
 import tomllib
 from datetime import datetime, timezone
@@ -191,6 +193,50 @@ def demo_live(project, now):
     return {"branch": "main", "version": "v1.2.3", "prs": seed % 5,
             "issues": seed % 3, "stars": seed * 7, "ci": "success",
             "up": True, "last_activity": now - timedelta(hours=seed)}
+
+
+def run_cmd(cmd, *, timeout, cwd=None):
+    """List-form subprocess; returns stripped stdout, '' on any failure. Never shell=True."""
+    try:
+        res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True,
+                             timeout=timeout, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return res.stdout.strip()
+
+
+def _http_up(url, timeout=8):
+    import urllib.request
+    req = urllib.request.Request(url, method="HEAD")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return 200 <= resp.status < 400
+    except Exception:
+        return False
+
+
+def collect_local(project, *, now):
+    path = project["path"]
+    live = {"last_activity": None}
+    if os.path.isdir(os.path.join(path, ".git")) or os.path.isdir(path):
+        branch = run_cmd(["git", "branch", "--show-current"], timeout=15, cwd=path)
+        if branch:
+            live["branch"] = branch
+        tag = run_cmd(["git", "describe", "--tags", "--abbrev=0"], timeout=15, cwd=path)
+        if tag:
+            live["version"] = tag
+        last = run_cmd(["git", "log", "-1", "--format=%cI"], timeout=15, cwd=path)
+        if last:
+            live["last_activity"] = parse_ts(last)
+    services = project.get("services", {})
+    for name in services.get("pm2", []):
+        out = run_cmd(["pm2", "jlist"], timeout=15)  # presence check; count if listed
+        if out and name in out:
+            live["ci"] = "pm2 up"
+    urls = project.get("urls", {})
+    if urls.get("prod"):
+        live["up"] = _http_up(urls["prod"])
+    return live
 
 
 def collect_live(project, *, token=None, now=None):
