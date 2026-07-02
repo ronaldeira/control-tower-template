@@ -15,3 +15,14 @@ repo = "ronaldeira/aquila-guardian"
 id   = "control-tower-template"
 name = "Control Tower (template)"
 repo = "ronaldeira/control-tower-template"
+
+# --- Repos da comunidade que acompanhamos (dado público; remote-only) ---
+[[projects]]
+id   = "codexbar"
+name = "CodexBar (@steipete)"
+repo = "steipete/CodexBar"
+
+[[projects]]
+id   = "ai-memory"
+name = "ai-memory (@akitaonrails)"
+repo = "akitaonrails/ai-memory"
