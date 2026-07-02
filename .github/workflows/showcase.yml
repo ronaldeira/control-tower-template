@@ -36,7 +36,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           python3 scripts/build_dashboard.py \
-            --config control-tower.config.example.toml --no-env -o dashboard.html
+            --config control-tower.config.example.toml --strict-remote-only --no-env -o dashboard.html
       - name: Prepare Pages artifact
         run: |
           mkdir -p _site

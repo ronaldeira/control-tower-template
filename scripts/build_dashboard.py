@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 PROJECT_ID_RE = re.compile(r'^[a-z0-9_-]+$')
 REPO_RE = re.compile(r'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')
+SERVICE_NAME_RE = re.compile(r'^[a-z0-9_./-]+$')
 
 
 class ConfigError(Exception):
@@ -37,6 +38,13 @@ def validate_config(cfg: dict, *, strict_remote_only: bool = False) -> None:
             raise ConfigError(f"{where}: repo {p['repo']!r} must be 'owner/name'")
         if mode_of(p) == "remote" and "repo" not in p:
             raise ConfigError(f"{where}: remote entry requires a `repo`")
+        services = p.get("services")
+        if isinstance(services, dict):
+            for name in [*services.get("pm2", []), *services.get("docker", [])]:
+                if not SERVICE_NAME_RE.match(str(name)):
+                    raise ConfigError(
+                        f"{where}: service name {name!r} must match ^[a-z0-9_./-]+$"
+                    )
         if strict_remote_only:
             for forbidden in ("path", "services"):
                 if forbidden in p:
@@ -102,9 +110,9 @@ def build_row(project, live, now, fresh_hours):
         "url": project.get("url", ""),
         "branch": live.get("branch") or "(detached)",
         "version": live.get("version") or "(no tags)",
-        "prs": live.get("prs", "n/a") if live.get("prs") is not None else "n/a",
-        "issues": live.get("issues", "n/a") if live.get("issues") is not None else "n/a",
-        "stars": live.get("stars", "n/a") if live.get("stars") is not None else "n/a",
+        "prs": live.get("prs") if live.get("prs") is not None else "n/a",
+        "issues": live.get("issues") if live.get("issues") is not None else "n/a",
+        "stars": live.get("stars") if live.get("stars") is not None else "n/a",
         "ci": live.get("ci") or "n/a",
         "up": live.get("up"),
         "age_label": relative_age(la, now),
@@ -274,6 +282,17 @@ def github_get(path, token):
         return None
 
 
+def parse_ci_runs(runs):
+    """Latest GitHub Actions conclusion/status from an actions/runs response; None if unknown."""
+    if not isinstance(runs, dict):
+        return None
+    wr = runs.get("workflow_runs")
+    if not isinstance(wr, list) or not wr:
+        return None
+    latest = wr[0]
+    return latest.get("conclusion") or latest.get("status") or None
+
+
 def collect_remote(project, *, token, now):
     repo = project["repo"]
     data = github_get(f"repos/{repo}", token)
@@ -286,6 +305,12 @@ def collect_remote(project, *, token, now):
     live = parse_repo_json(data, pr_count, release_ts)
     if isinstance(rel, dict) and rel.get("tag_name"):
         live["version"] = rel["tag_name"]
+    branch = data.get("default_branch") or ""
+    if branch:
+        runs = github_get(f"repos/{repo}/actions/runs?per_page=1&branch={branch}", token)
+        ci = parse_ci_runs(runs)
+        if ci:
+            live["ci"] = ci
     if project.get("url"):
         live["up"] = _http_up(project["url"])
     return live
@@ -317,6 +342,7 @@ def main(argv=None):
     ap.add_argument("--demo", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--no-env", action="store_true")
+    ap.add_argument("--strict-remote-only", action="store_true")
     ap.add_argument("-o", "--out", default="dashboard.html")
     args = ap.parse_args(argv)
 
@@ -325,7 +351,7 @@ def main(argv=None):
         cfg = {"dashboard": {"title": "Control Tower — Demo"}, "projects": demo_projects()}
     else:
         try:
-            cfg = load_config(args.config)
+            cfg = load_config(args.config, strict_remote_only=args.strict_remote_only)
         except (OSError, ConfigError) as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1

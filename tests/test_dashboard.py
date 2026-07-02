@@ -104,10 +104,19 @@ def test_relative_age():
     assert bd.relative_age(NOW - timedelta(days=2), NOW) == "2d ago"
 
 
+def test_relative_age_exact_boundaries():
+    assert bd.relative_age(NOW - timedelta(hours=1), NOW) == "1h ago"
+    assert bd.relative_age(NOW - timedelta(hours=24), NOW) == "1d ago"
+
+
 def test_is_fresh_window():
     assert bd.is_fresh(NOW - timedelta(hours=10), NOW, 48) is True
     assert bd.is_fresh(NOW - timedelta(hours=60), NOW, 48) is False
     assert bd.is_fresh(None, NOW, 48) is False
+
+
+def test_is_fresh_exact_boundary():
+    assert bd.is_fresh(NOW - timedelta(hours=48), NOW, 48) is True
 
 
 def _live(**kw):
@@ -245,3 +254,41 @@ def test_example_config_is_remote_only():
     for p in cfg["projects"]:
         assert "path" not in p and "services" not in p
         assert bd.REPO_RE.match(p["repo"])
+
+
+def test_cli_strict_remote_only_rejects_local_config(tmp_path):
+    cfg = tmp_path / "c.toml"
+    cfg.write_text('[[projects]]\nid="x"\nname="X"\npath="/abs/x"\n')
+    rc = bd.main(["--config", str(cfg), "--strict-remote-only", "--dry-run"])
+    assert rc == 1
+
+
+def test_cli_strict_remote_only_accepts_example_config():
+    root = Path(__file__).resolve().parent.parent
+    example = root / "control-tower.config.example.toml"
+    rc = bd.main(["--config", str(example), "--strict-remote-only", "--dry-run"])
+    assert rc == 0
+
+
+def test_parse_ci_runs_returns_latest_conclusion():
+    assert bd.parse_ci_runs({"workflow_runs": [{"conclusion": "success"}]}) == "success"
+
+
+def test_parse_ci_runs_empty_list_returns_none():
+    assert bd.parse_ci_runs({"workflow_runs": []}) is None
+
+
+def test_parse_ci_runs_none_input_returns_none():
+    assert bd.parse_ci_runs(None) is None
+
+
+def test_service_name_validation_rejects_bad_name(tmp_path):
+    with pytest.raises(bd.ConfigError, match="service name"):
+        bd.load_config(_write(tmp_path, """
+            [[projects]]
+            id = "x"
+            name = "X"
+            path = "/abs/x"
+            [projects.services]
+            pm2 = ["bad name!"]
+        """))
