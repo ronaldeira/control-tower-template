@@ -14,6 +14,11 @@ babysitting a wiki. GitHub Projects doesn't show "what changed 2 hours ago" acro
 repos; Notion goes stale. This reads live public data (and, optionally, local git /
 service state) into one static HTML page you can publish or open locally.
 
+> **Scope — read this first.** This is the generic OSS template. It is *not* a full
+> ops platform: richer private-infra features some maintainers run (SSH-to-prod health
+> checks, host CPU/RAM/disk stats, git ahead/behind vs. origin) are intentionally **not
+> included** here. Fork it and add what your setup needs.
+
 ## Not for you if…
 
 - You use managed Kubernetes dashboards (Lens/kubectl already cover that).
@@ -24,7 +29,13 @@ service state) into one static HTML page you can publish or open locally.
 ## Requirements
 
 - **Python 3.11+** (uses stdlib `tomllib`). No `pip install`, no third-party deps.
-- Optional: `git` (local mode), the GitHub CLI `gh` (higher API rate limit), `pm2`/`docker`.
+- Optional: `git` (local mode); the GitHub CLI `gh` for remote mode — with `gh`
+  authenticated (or a `GITHUB_TOKEN`), the GitHub API allows **5000 req/hr**; **without
+  it, remote mode is capped at 60 req/hr** and repos past that limit render as `n/a`.
+  Also optional: `pm2`/`docker` (local service status).
+
+> Note: the per-repo "issues" count comes from GitHub's `open_issues_count`, which
+> **includes open pull requests** — so "PRs" and "issues" on a card can overlap.
 
 ## Quickstart (≈2 minutes)
 
