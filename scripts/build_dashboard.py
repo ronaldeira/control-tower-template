@@ -14,8 +14,8 @@ class ConfigError(Exception):
 
 
 def mode_of(project: dict) -> str:
-    """A project is local mode iff it declares a `path`, else remote mode."""
-    return "local" if project.get("path") else "remote"
+    """A project is local mode iff it declares a `path` key, else remote mode."""
+    return "local" if "path" in project else "remote"
 
 
 def validate_config(cfg: dict, *, strict_remote_only: bool = False) -> None:

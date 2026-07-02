@@ -15,6 +15,11 @@ def test_mode_of_detects_local_and_remote():
     assert bd.mode_of({"id": "a", "repo": "o/r"}) == "remote"
 
 
+def test_mode_of_uses_key_presence_not_truthiness():
+    # A path key present but empty is still local mode.
+    assert bd.mode_of({"id": "a", "path": ""}) == "local"
+
+
 def test_load_valid_remote_config(tmp_path):
     cfg = bd.load_config(_write(tmp_path, """
         [dashboard]
