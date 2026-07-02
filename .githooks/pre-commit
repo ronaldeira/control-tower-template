@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Refuse to commit generated artifacts that can carry local paths / host / IP.
+set -uo pipefail
+staged="$(git diff --cached --name-only)"
+bad="$(echo "$staged" | grep -E '(^|/)dashboard\.html$|\.generated\.md$|(^|/)control-tower\.config\.toml$' || true)"
+if [ -n "$bad" ]; then
+  echo "❌ pre-commit: refusing to commit generated/private files:" >&2
+  echo "$bad" >&2
+  echo "These are gitignored by default; do not force-add them." >&2
+  exit 1
+fi
+exit 0
