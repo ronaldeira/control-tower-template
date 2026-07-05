@@ -16,6 +16,16 @@ id   = "control-tower-template"
 name = "Control Tower (template)"
 repo = "ronaldeira/control-tower-template"
 
+[[projects]]
+id   = "web3-workshops"
+name = "Web3 Workshops"
+repo = "ronaldeira/web3-workshops"
+
+[[projects]]
+id   = "bitcoito"
+name = "bitcoito (xpost-api)"
+repo = "ronaldeira/bitcoito"
+
 # --- Repos da comunidade que acompanhamos (dado público; remote-only) ---
 [[projects]]
 id   = "codexbar"
